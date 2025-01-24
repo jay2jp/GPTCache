@@ -2,7 +2,7 @@ import time
 
 
 def response_text(openai_resp):
-    return openai_resp['choices'][0]['message']['content']
+    return openai_resp.choices[0].message.content #'choices'][0]['message']['content']
 
 from gptcache import cache
 from gptcache.adapter import openai

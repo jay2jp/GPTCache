@@ -247,12 +247,16 @@ def adapt(llm_handler, cache_data_convert, update_cache_callback, *args, **kwarg
 
     if cache_enable:
         try:
-
             def update_cache_func(handled_llm_data, question=None):
                 if question is None:
                     question = pre_store_data
                 else:
                     question.content = pre_store_data
+                # Ensure handled_llm_data is in the correct format before saving
+                if hasattr(handled_llm_data, 'choices') and hasattr(handled_llm_data.choices[0], 'message'):
+                    # Handle ChatCompletion response
+                    handled_llm_data = handled_llm_data.choices[0].message.content
+                
                 time_cal(
                     chat_cache.data_manager.save,
                     func_name="save",
@@ -493,12 +497,16 @@ async def aadapt(
 
     if cache_enable:
         try:
-
             def update_cache_func(handled_llm_data, question=None):
                 if question is None:
                     question = pre_store_data
                 else:
                     question.content = pre_store_data
+                # Ensure handled_llm_data is in the correct format before saving
+                if hasattr(handled_llm_data, 'choices') and hasattr(handled_llm_data.choices[0], 'message'):
+                    # Handle ChatCompletion response
+                    handled_llm_data = handled_llm_data.choices[0].message.content
+                
                 time_cal(
                     chat_cache.data_manager.save,
                     func_name="save",
