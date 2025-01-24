@@ -32,13 +32,38 @@ for question in questions:
     start_time = time.time()
     response = openai.ChatCompletion.create(
         model='gpt-4o',
+        stream=True,
         messages=[
+            {
+                'role': 'system',
+                'content': 'You are a helpful assistant.'
+            },
+            {
+                'role': 'user',
+                'content': "what is cheese"
+            },
+            {
+                'role': 'assistant',
+                'content': "cheese is a food"
+            },
             {
                 'role': 'user',
                 'content': question
             }
         ],
     )
-    print(f'Question: {question}')
+    first_chunk_received = False
+    collected_text = ""
+    print(f'\nQuestion: {question}')
     print("Time consuming: {:.2f}s".format(time.time() - start_time))
-    print(f'Answer: {response_text(response)}\n')
+    
+    for chunk in response:
+        if not first_chunk_received:
+            print(f'Time to first chunk: {time.time() - start_time:.2f}s')
+            first_chunk_received = True
+        
+        if "content" in chunk['choices'][0]['delta']:
+            content = chunk['choices'][0]['delta']['content']
+            collected_text += content
+    
+    print(f'Complete response:\n{collected_text}\n')

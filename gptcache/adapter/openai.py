@@ -25,7 +25,7 @@ from gptcache.utils.token import token_counter
 # Import OpenAI, and bring in the new 1.0+ error class
 import_openai()
 import openai
-from openai.error import OpenAIError
+from openai import OpenAIError
 
 # ------------------------------------------------------------------------------
 # Utility functions (unchanged)
