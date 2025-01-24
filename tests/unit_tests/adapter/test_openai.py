@@ -45,7 +45,7 @@ def test_normal_openai(enable_token_counter):
     cache.init(config=Config(enable_token_counter=enable_token_counter))
     question = "calculate 1+3"
     expect_answer = "the result is 4"
-    with patch("openai.ChatCompletion.create") as mock_create:
+    with patch("openai.resources.chat.Completions.create") as mock_create:
         datas = {
             "choices": [
                 {
@@ -134,7 +134,7 @@ def test_stream_openai():
     question = "calculate 1+1"
     expect_answer = "the result is 2"
 
-    with patch("openai.ChatCompletion.create") as mock_create:
+    with patch("openai.resources.chat.Completions.create") as mock_create:
         datas = [
             {
                 "choices": [
@@ -292,7 +292,7 @@ def test_completion():
     question = "what is your name?"
     expect_answer = "gptcache"
 
-    with patch("openai.Completion.create") as mock_create:
+    with patch("openai.resources.Completions.create") as mock_create:
         mock_create.return_value = {
             "choices": [{"text": expect_answer, "finish_reason": None, "index": 0}],
             "created": 1677825464,
@@ -316,7 +316,7 @@ async def test_completion_async():
     question = "what is your name?"
     expect_answer = "gptcache"
 
-    with patch("openai.Completion.acreate", new_callable=AsyncMock) as mock_acreate:
+    with patch("openai.resources.Completions.acreate", new_callable=AsyncMock) as mock_acreate:
         mock_acreate.return_value = {
             "choices": [{"text": expect_answer, "finish_reason": None, "index": 0}],
             "created": 1677825464,
@@ -343,13 +343,13 @@ async def test_completion_error_wrapping():
     cache.init(pre_embedding_func=get_prompt)
     import openai as real_openai
 
-    with patch("openai.Completion.acreate", new_callable=AsyncMock) as mock_acreate:
+    with patch("openai.resources.Completions.acreate", new_callable=AsyncMock) as mock_acreate:
         mock_acreate.side_effect = real_openai.OpenAIError
         with pytest.raises(real_openai.OpenAIError) as e:
             await openai.Completion.acreate(model="text-davinci-003", prompt="boom")
         assert isinstance(e.value, CacheError)
 
-    with patch("openai.Completion.create") as mock_create:
+    with patch("openai.resources.Completions.create") as mock_create:
         mock_create.side_effect = real_openai.OpenAIError
         with pytest.raises(real_openai.OpenAIError) as e:
             openai.Completion.create(model="text-davinci-003", prompt="boom")
@@ -373,7 +373,7 @@ def test_image_create():
     expected_img_data = base64.b64encode(buffered.getvalue()).decode("ascii")
 
     ###### Return base64 ######
-    with patch("openai.Image.create") as mock_create_b64:
+    with patch("openai.resources.Images.create") as mock_create_b64:
         mock_create_b64.return_value = {
             "created": 1677825464,
             "data": [{"b64_json": expected_img_data}],
@@ -392,7 +392,7 @@ def test_image_create():
     assert img_returned == expected_img_data
 
     ###### Return url ######
-    with patch("openai.Image.create") as mock_create_url:
+    with patch("openai.resources.Images.create") as mock_create_url:
         mock_create_url.return_value = {
             "created": 1677825464,
             "data": [{"url": test_url}],
@@ -422,7 +422,7 @@ def test_audio_transcribe():
         "she been gone tonight I ain't seen my baby since night of her life One bourbon, one scotch and one bill"
     )
 
-    with patch("openai.Audio.transcribe") as mock_create:
+    with patch("openai.resources.Audio.transcribe") as mock_create:
         mock_create.return_value = {"text": expect_answer}
 
         response = openai.Audio.transcribe(model="whisper-1", file=audio_file)
@@ -447,7 +447,7 @@ def test_audio_translate():
         "she been gone tonight I ain't seen my baby since night of her life One bourbon, one scotch and one bill"
     )
 
-    with patch("openai.Audio.translate") as mock_create:
+    with patch("openai.resources.Audio.translate") as mock_create:
         mock_create.return_value = {"text": expect_answer}
 
         response = openai.Audio.translate(model="whisper-1", file=audio_file)
@@ -465,7 +465,7 @@ def test_moderation():
         data_dir=str(random.random()), pre_func=get_openai_moderation_input
     )
     expect_violence = 0.8864422
-    with patch("openai.Moderation.create") as mock_create:
+    with patch("openai.resources.Moderations.create") as mock_create:
         mock_create.return_value = {
             "id": "modr-7IxkwrKvfnNJJIBsXAc0mfcpGaQJF",
             "model": "text-moderation-004",
@@ -510,7 +510,7 @@ def test_moderation():
     )
 
     expect_violence = 0.88708615
-    with patch("openai.Moderation.create") as mock_create:
+    with patch("openai.resources.Moderations.create") as mock_create:
         mock_create.return_value = {
             "id": "modr-7Ixe5Bvq4wqzZb1xtOxGxewg0G87F",
             "model": "text-moderation-004",
@@ -586,7 +586,7 @@ def test_base_llm_cache():
     question = "What's Github"
     expect_answer = "Github is a great place to start"
 
-    with patch("openai.ChatCompletion.create") as mock_create:
+    with patch("openai.resources.chat.Completions.create") as mock_create:
         datas = {
             "choices": [
                 {

@@ -32,7 +32,7 @@ def test_langchain_llms():
     llm = LangChainLLMs(llm=langchain_openai,cache_obj=llm_cache)
     assert str(langchain_openai) == str(llm)
 
-    with patch("openai.Completion.create") as mock_create:
+    with patch("openai.resources.Completions.create") as mock_create:
         mock_create.return_value = {
               "choices": [
                 {
@@ -82,7 +82,7 @@ def test_langchain_chats():
     assert chat.get_num_tokens_from_messages(messages=[HumanMessage(content="test_langchain_chats")]) \
            == langchain_openai.get_num_tokens_from_messages(messages=[HumanMessage(content="test_langchain_chats")])
 
-    with patch("openai.ChatCompletion.create") as mock_create:
+    with patch("openai.resources.chat.Completions.create") as mock_create:
         mock_create.return_value = {
             "choices": [
                 {
@@ -106,7 +106,7 @@ def test_langchain_chats():
         answer = chat(messages=question)
         assert answer == _cache_msg_data_convert(msg).generations[0].message
 
-    with patch("openai.ChatCompletion.acreate") as mock_create:
+    with patch("openai.resources.chat.Completions.acreate") as mock_create:
         mock_create.return_value = {
             "choices": [
                 {
@@ -150,7 +150,7 @@ def test_last_content_without_template():
     subject_str = "animal"
     expect_answer = "this is a joke"
 
-    with patch("openai.ChatCompletion.create") as mock_create:
+    with patch("openai.resources.chat.Completions.create") as mock_create:
         datas = {
             "choices": [
                 {

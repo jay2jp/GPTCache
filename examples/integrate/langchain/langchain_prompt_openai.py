@@ -9,7 +9,6 @@ from gptcache.adapter.langchain_models import LangChainLLMs
 from gptcache import Cache
 from gptcache.processor.pre import get_prompt
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 template = """Question: {question}
 

@@ -7,7 +7,9 @@ from gptcache.utils import import_openai
 
 import_openai()
 
-import openai  # pylint: disable=C0413
+from openai import OpenAI
+
+client = OpenAI(api_key=api_key)  # pylint: disable=C0413
 
 class OpenAI(BaseEmbedding):
     """Generate text embedding for given text using OpenAI.
@@ -38,7 +40,6 @@ class OpenAI(BaseEmbedding):
                 api_base = openai.api_base
             else:
                 api_base = os.getenv("OPENAI_API_BASE")
-        openai.api_key = api_key
         self.api_base = api_base  # don't override all of openai as we may just want to override for say embeddings
         self.model = model
         if model in self.dim_dict():
@@ -54,7 +55,7 @@ class OpenAI(BaseEmbedding):
 
         :return: a text embedding in shape of (dim,).
         """
-        sentence_embeddings = openai.Embedding.create(model=self.model, input=data, api_base=self.api_base)
+        sentence_embeddings = client.embeddings.create(model=self.model, input=data, api_base=self.api_base)
         return np.array(sentence_embeddings["data"][0]["embedding"]).astype("float32")
 
     @property

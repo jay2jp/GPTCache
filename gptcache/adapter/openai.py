@@ -24,7 +24,10 @@ from gptcache.utils.token import token_counter
 
 # Import OpenAI, and bring in the new 1.0+ error class
 import_openai()
-import openai
+from openai import OpenAI, AsyncOpenAI
+
+client = OpenAI()
+aclient = AsyncOpenAI()
 from openai import OpenAIError
 
 # ------------------------------------------------------------------------------
@@ -175,7 +178,7 @@ class ChatCompletion(BaseCacheLLM):
         """
         try:
             if cls.llm is None:  # if no custom LLM, call OpenAI
-                return openai.ChatCompletion.create(*llm_args, **llm_kwargs)
+                return client.chat.completions.create(*llm_args, **llm_kwargs)
             else:  # otherwise call custom LLM
                 return cls.llm(*llm_args, **llm_kwargs)
         except OpenAIError as e:
@@ -188,7 +191,7 @@ class ChatCompletion(BaseCacheLLM):
         """
         try:
             if cls.llm is None:
-                return await openai.ChatCompletion.acreate(*llm_args, **llm_kwargs)
+                return await aclient.chat.completions.create(*llm_args, **llm_kwargs)
             else:
                 return await cls.llm(*llm_args, **llm_kwargs)
         except OpenAIError as e:
@@ -294,7 +297,7 @@ class Completion(BaseCacheLLM):
     def _llm_handler(cls, *llm_args, **llm_kwargs):
         try:
             if not cls.llm:
-                return openai.Completion.create(*llm_args, **llm_kwargs)
+                return client.completions.create(*llm_args, **llm_kwargs)
             else:
                 return cls.llm(*llm_args, **llm_kwargs)
         except OpenAIError as e:
@@ -304,7 +307,7 @@ class Completion(BaseCacheLLM):
     async def _allm_handler(cls, *llm_args, **llm_kwargs):
         try:
             if cls.llm is None:
-                return await openai.Completion.acreate(*llm_args, **llm_kwargs)
+                return await aclient.completions.create(*llm_args, **llm_kwargs)
             else:
                 return await cls.llm(*llm_args, **llm_kwargs)
         except OpenAIError as e:
@@ -351,7 +354,7 @@ class Audio:
     def transcribe(cls, model: str, file: Any, *args, **kwargs):
         def llm_handler(*llm_args, **llm_kwargs):
             try:
-                return openai.Audio.transcribe(*llm_args, **llm_kwargs)
+                return client.audio.transcribe(*llm_args, **llm_kwargs)
             except OpenAIError as e:
                 raise wrap_error(e) from e
 
@@ -378,7 +381,7 @@ class Audio:
     def translate(cls, model: str, file: Any, *args, **kwargs):
         def llm_handler(*llm_args, **llm_kwargs):
             try:
-                return openai.Audio.translate(*llm_args, **llm_kwargs)
+                return client.audio.translate(*llm_args, **llm_kwargs)
             except OpenAIError as e:
                 raise wrap_error(e) from e
 
@@ -410,7 +413,7 @@ class Image(BaseCacheLLM):
     @classmethod
     def _llm_handler(cls, *llm_args, **llm_kwargs):
         try:
-            return openai.Image.create(*llm_args, **llm_kwargs)
+            return client.images.generate(*llm_args, **llm_kwargs)
         except OpenAIError as e:
             raise wrap_error(e) from e
 
@@ -458,7 +461,7 @@ class Moderation(BaseCacheLLM):
     def _llm_handler(cls, *llm_args, **llm_kwargs):
         try:
             if not cls.llm:
-                return openai.Moderation.create(*llm_args, **llm_kwargs)
+                return client.moderations.create(*llm_args, **llm_kwargs)
             else:
                 return cls.llm(*llm_args, **llm_kwargs)
         except OpenAIError as e:
