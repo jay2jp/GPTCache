@@ -7,7 +7,16 @@ def get_message_from_openai_answer(openai_resp):
 
 
 def get_stream_message_from_openai_answer(openai_data):
-    return openai_data["choices"][0]["delta"].get("content", "")
+    """Get message content from OpenAI stream response."""
+    if hasattr(openai_data, 'choices') and len(openai_data.choices) > 0:
+        choice = openai_data.choices[0]
+        if hasattr(choice, 'delta'):
+            return choice.delta.content if hasattr(choice.delta, 'content') else ""
+    # Fallback for dictionary format
+    try:
+        return openai_data["choices"][0]["delta"].get("content", "")
+    except (KeyError, TypeError):
+        return ""
 
 
 def get_text_from_openai_answer(openai_resp):

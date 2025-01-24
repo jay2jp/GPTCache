@@ -30,6 +30,9 @@ client = OpenAI()
 aclient = AsyncOpenAI()
 from openai import OpenAIError
 
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice, ChoiceDelta
+
 # ------------------------------------------------------------------------------
 # Utility functions (unchanged)
 # ------------------------------------------------------------------------------
@@ -59,33 +62,51 @@ def _construct_resp_from_cache(return_message, saved_token):
 
 def _construct_stream_resp_from_cache(return_message, saved_token):
     created = int(time.time())
-    return [
-        {
-            "choices": [
-                {"delta": {"role": "assistant"}, "finish_reason": None, "index": 0}
-            ],
-            "created": created,
-            "object": "chat.completion.chunk",
-        },
-        {
-            "choices": [
-                {
-                    "delta": {"content": return_message},
-                    "finish_reason": None,
-                    "index": 0,
-                }
-            ],
-            "created": created,
-            "object": "chat.completion.chunk",
-        },
-        {
-            "gptcache": True,
-            "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}],
-            "created": created,
-            "object": "chat.completion.chunk",
-            "saved_token": saved_token,
-        },
-    ]
+    chunks = []
+    
+    # First chunk with role
+    chunks.append(ChatCompletionChunk(
+        id="chat-chunk-" + str(created),
+        choices=[Choice(
+            delta=ChoiceDelta(role="assistant"),
+            finish_reason=None,
+            index=0
+        )],
+        created=created,
+        model="gpt-3.5-turbo",
+        object="chat.completion.chunk"
+    ))
+    
+    # Content chunk
+    chunks.append(ChatCompletionChunk(
+        id="chat-chunk-" + str(created),
+        choices=[Choice(
+            delta=ChoiceDelta(content=return_message),
+            finish_reason=None,
+            index=0
+        )],
+        created=created,
+        model="gpt-3.5-turbo",
+        object="chat.completion.chunk"
+    ))
+    
+    # Final chunk with finish reason
+    chunks.append(ChatCompletionChunk(
+        id="chat-chunk-" + str(created),
+        choices=[Choice(
+            delta=ChoiceDelta(),
+            finish_reason="stop",
+            index=0
+        )],
+        created=created,
+        model="gpt-3.5-turbo",
+        object="chat.completion.chunk",
+        # Custom fields for gptcache
+        gptcache=True,
+        saved_token=saved_token
+    ))
+    
+    return chunks
 
 
 def _construct_text_from_cache(return_text):
@@ -199,32 +220,58 @@ class ChatCompletion(BaseCacheLLM):
 
     @staticmethod
     def _update_cache_callback(llm_data, update_cache_func, *args, **kwargs):
-        if isinstance(llm_data, AsyncGenerator):
-            async def hook_openai_data(it):
-                total_answer = ""
-                async for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
-        elif not isinstance(llm_data, Iterator):
-            # Handle modern OpenAI response object
-            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
-                message_content = llm_data.choices[0].message.content
-                update_cache_func(Answer(message_content, DataType.STR))
+        try:
+            if isinstance(llm_data, AsyncGenerator):
+                async def hook_openai_data(it):
+                    total_answer = ""
+                    async for item in it:
+                        content = get_stream_message_from_openai_answer(item) or ""
+                        total_answer += content
+                        yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+            elif not isinstance(llm_data, Iterator):
+                # Handle modern OpenAI response object
+                try:
+                    if llm_data and hasattr(llm_data, 'choices') and len(llm_data.choices) > 0:
+                        choice = llm_data.choices[0]
+                        if hasattr(choice, 'message') and choice.message:
+                            message_content = choice.message.content or ""
+                            update_cache_func(Answer(message_content, DataType.STR))
+                        else:
+                            # Fallback for other response types
+                            update_cache_func(Answer(get_message_from_openai_answer(llm_data) or "", DataType.STR))
+                    else:
+                        # Handle empty or invalid response
+                        update_cache_func(Answer("", DataType.STR))
+                except (AttributeError, IndexError) as e:
+                    # Log the error but don't crash
+                    print(f"Error processing response: {e}")
+                    update_cache_func(Answer("", DataType.STR))
+                return llm_data
             else:
-                # Fallback for other response types
-                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
+                # streaming in an iterable
+                def hook_openai_data(it):
+                    total_answer = ""
+                    for item in it:
+                        # Handle modern OpenAI streaming response
+                        if hasattr(item, 'choices') and len(item.choices) > 0:
+                            choice = item.choices[0]
+                            if hasattr(choice, 'delta'):
+                                content = choice.delta.content if hasattr(choice.delta, 'content') else ""
+                                total_answer += content or ""  # Handle None case
+                                yield item
+                        else:
+                            # Fallback for older format
+                            content = get_stream_message_from_openai_answer(item) or ""
+                            total_answer += content
+                            yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+        except Exception as e:
+            print(f"Unexpected error in update_cache_callback: {e}")
+            update_cache_func(Answer("", DataType.STR))
             return llm_data
-        else:
-            # streaming in an iterable
-            def hook_openai_data(it):
-                total_answer = ""
-                for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -319,32 +366,58 @@ class Completion(BaseCacheLLM):
 
     @staticmethod
     def _update_cache_callback(llm_data, update_cache_func, *args, **kwargs):
-        if isinstance(llm_data, AsyncGenerator):
-            async def hook_openai_data(it):
-                total_answer = ""
-                async for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
-        elif not isinstance(llm_data, Iterator):
-            # Handle modern OpenAI response object
-            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
-                message_content = llm_data.choices[0].message.content
-                update_cache_func(Answer(message_content, DataType.STR))
+        try:
+            if isinstance(llm_data, AsyncGenerator):
+                async def hook_openai_data(it):
+                    total_answer = ""
+                    async for item in it:
+                        content = get_stream_message_from_openai_answer(item) or ""
+                        total_answer += content
+                        yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+            elif not isinstance(llm_data, Iterator):
+                # Handle modern OpenAI response object
+                try:
+                    if llm_data and hasattr(llm_data, 'choices') and len(llm_data.choices) > 0:
+                        choice = llm_data.choices[0]
+                        if hasattr(choice, 'message') and choice.message:
+                            message_content = choice.message.content or ""
+                            update_cache_func(Answer(message_content, DataType.STR))
+                        else:
+                            # Fallback for other response types
+                            update_cache_func(Answer(get_message_from_openai_answer(llm_data) or "", DataType.STR))
+                    else:
+                        # Handle empty or invalid response
+                        update_cache_func(Answer("", DataType.STR))
+                except (AttributeError, IndexError) as e:
+                    # Log the error but don't crash
+                    print(f"Error processing response: {e}")
+                    update_cache_func(Answer("", DataType.STR))
+                return llm_data
             else:
-                # Fallback for other response types
-                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
+                # streaming in an iterable
+                def hook_openai_data(it):
+                    total_answer = ""
+                    for item in it:
+                        # Handle modern OpenAI streaming response
+                        if hasattr(item, 'choices') and len(item.choices) > 0:
+                            choice = item.choices[0]
+                            if hasattr(choice, 'delta'):
+                                content = choice.delta.content if hasattr(choice.delta, 'content') else ""
+                                total_answer += content or ""  # Handle None case
+                                yield item
+                        else:
+                            # Fallback for older format
+                            content = get_stream_message_from_openai_answer(item) or ""
+                            total_answer += content
+                            yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+        except Exception as e:
+            print(f"Unexpected error in update_cache_callback: {e}")
+            update_cache_func(Answer("", DataType.STR))
             return llm_data
-        else:
-            # streaming in an iterable
-            def hook_openai_data(it):
-                total_answer = ""
-                for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -497,32 +570,58 @@ class Moderation(BaseCacheLLM):
 
     @classmethod
     def _update_cache_callback(cls, llm_data, update_cache_func, *args, **kwargs):
-        if isinstance(llm_data, AsyncGenerator):
-            async def hook_openai_data(it):
-                total_answer = ""
-                async for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
-        elif not isinstance(llm_data, Iterator):
-            # Handle modern OpenAI response object
-            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
-                message_content = llm_data.choices[0].message.content
-                update_cache_func(Answer(message_content, DataType.STR))
+        try:
+            if isinstance(llm_data, AsyncGenerator):
+                async def hook_openai_data(it):
+                    total_answer = ""
+                    async for item in it:
+                        content = get_stream_message_from_openai_answer(item) or ""
+                        total_answer += content
+                        yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+            elif not isinstance(llm_data, Iterator):
+                # Handle modern OpenAI response object
+                try:
+                    if llm_data and hasattr(llm_data, 'choices') and len(llm_data.choices) > 0:
+                        choice = llm_data.choices[0]
+                        if hasattr(choice, 'message') and choice.message:
+                            message_content = choice.message.content or ""
+                            update_cache_func(Answer(message_content, DataType.STR))
+                        else:
+                            # Fallback for other response types
+                            update_cache_func(Answer(get_message_from_openai_answer(llm_data) or "", DataType.STR))
+                    else:
+                        # Handle empty or invalid response
+                        update_cache_func(Answer("", DataType.STR))
+                except (AttributeError, IndexError) as e:
+                    # Log the error but don't crash
+                    print(f"Error processing response: {e}")
+                    update_cache_func(Answer("", DataType.STR))
+                return llm_data
             else:
-                # Fallback for other response types
-                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
+                # streaming in an iterable
+                def hook_openai_data(it):
+                    total_answer = ""
+                    for item in it:
+                        # Handle modern OpenAI streaming response
+                        if hasattr(item, 'choices') and len(item.choices) > 0:
+                            choice = item.choices[0]
+                            if hasattr(choice, 'delta'):
+                                content = choice.delta.content if hasattr(choice.delta, 'content') else ""
+                                total_answer += content or ""  # Handle None case
+                                yield item
+                        else:
+                            # Fallback for older format
+                            content = get_stream_message_from_openai_answer(item) or ""
+                            total_answer += content
+                            yield item
+                    update_cache_func(Answer(total_answer, DataType.STR))
+                return hook_openai_data(llm_data)
+        except Exception as e:
+            print(f"Unexpected error in update_cache_callback: {e}")
+            update_cache_func(Answer("", DataType.STR))
             return llm_data
-        else:
-            # streaming in an iterable
-            def hook_openai_data(it):
-                total_answer = ""
-                for item in it:
-                    total_answer += get_stream_message_from_openai_answer(item)
-                    yield item
-                update_cache_func(Answer(total_answer, DataType.STR))
-            return hook_openai_data(llm_data)
 
     @classmethod
     def create(cls, *args, **kwargs):

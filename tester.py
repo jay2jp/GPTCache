@@ -62,8 +62,8 @@ for question in questions:
             print(f'Time to first chunk: {time.time() - start_time:.2f}s')
             first_chunk_received = True
         
-        if "content" in chunk['choices'][0]['delta']:
-            content = chunk['choices'][0]['delta']['content']
+        if "content" in chunk.choices[0].delta:#['choices'][0]['delta']:
+            content = chunk.choices[0].delta.content#['choices'][0]['delta']['content']
             collected_text += content
     
     print(f'Complete response:\n{collected_text}\n')
