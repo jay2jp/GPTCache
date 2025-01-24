@@ -200,20 +200,21 @@ class ChatCompletion(BaseCacheLLM):
     @staticmethod
     def _update_cache_callback(llm_data, update_cache_func, *args, **kwargs):
         if isinstance(llm_data, AsyncGenerator):
-
             async def hook_openai_data(it):
                 total_answer = ""
                 async for item in it:
                     total_answer += get_stream_message_from_openai_answer(item)
                     yield item
                 update_cache_func(Answer(total_answer, DataType.STR))
-
             return hook_openai_data(llm_data)
         elif not isinstance(llm_data, Iterator):
-            # standard single-response
-            update_cache_func(
-                Answer(get_message_from_openai_answer(llm_data), DataType.STR)
-            )
+            # Handle modern OpenAI response object
+            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
+                message_content = llm_data.choices[0].message.content
+                update_cache_func(Answer(message_content, DataType.STR))
+            else:
+                # Fallback for other response types
+                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
             return llm_data
         else:
             # streaming in an iterable
@@ -223,7 +224,6 @@ class ChatCompletion(BaseCacheLLM):
                     total_answer += get_stream_message_from_openai_answer(item)
                     yield item
                 update_cache_func(Answer(total_answer, DataType.STR))
-
             return hook_openai_data(llm_data)
 
     @classmethod
@@ -319,8 +319,32 @@ class Completion(BaseCacheLLM):
 
     @staticmethod
     def _update_cache_callback(llm_data, update_cache_func, *args, **kwargs):
-        update_cache_func(Answer(get_text_from_openai_answer(llm_data), DataType.STR))
-        return llm_data
+        if isinstance(llm_data, AsyncGenerator):
+            async def hook_openai_data(it):
+                total_answer = ""
+                async for item in it:
+                    total_answer += get_stream_message_from_openai_answer(item)
+                    yield item
+                update_cache_func(Answer(total_answer, DataType.STR))
+            return hook_openai_data(llm_data)
+        elif not isinstance(llm_data, Iterator):
+            # Handle modern OpenAI response object
+            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
+                message_content = llm_data.choices[0].message.content
+                update_cache_func(Answer(message_content, DataType.STR))
+            else:
+                # Fallback for other response types
+                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
+            return llm_data
+        else:
+            # streaming in an iterable
+            def hook_openai_data(it):
+                total_answer = ""
+                for item in it:
+                    total_answer += get_stream_message_from_openai_answer(item)
+                    yield item
+                update_cache_func(Answer(total_answer, DataType.STR))
+            return hook_openai_data(llm_data)
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -473,8 +497,32 @@ class Moderation(BaseCacheLLM):
 
     @classmethod
     def _update_cache_callback(cls, llm_data, update_cache_func, *args, **kwargs):
-        update_cache_func(Answer(json.dumps(llm_data, indent=4), DataType.STR))
-        return llm_data
+        if isinstance(llm_data, AsyncGenerator):
+            async def hook_openai_data(it):
+                total_answer = ""
+                async for item in it:
+                    total_answer += get_stream_message_from_openai_answer(item)
+                    yield item
+                update_cache_func(Answer(total_answer, DataType.STR))
+            return hook_openai_data(llm_data)
+        elif not isinstance(llm_data, Iterator):
+            # Handle modern OpenAI response object
+            if hasattr(llm_data, 'choices') and hasattr(llm_data.choices[0], 'message'):
+                message_content = llm_data.choices[0].message.content
+                update_cache_func(Answer(message_content, DataType.STR))
+            else:
+                # Fallback for other response types
+                update_cache_func(Answer(get_message_from_openai_answer(llm_data), DataType.STR))
+            return llm_data
+        else:
+            # streaming in an iterable
+            def hook_openai_data(it):
+                total_answer = ""
+                for item in it:
+                    total_answer += get_stream_message_from_openai_answer(item)
+                    yield item
+                update_cache_func(Answer(total_answer, DataType.STR))
+            return hook_openai_data(llm_data)
 
     @classmethod
     def create(cls, *args, **kwargs):
