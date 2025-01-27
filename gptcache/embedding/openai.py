@@ -12,6 +12,7 @@ from openai import OpenAI
 client = OpenAI(api_key=api_key)  # pylint: disable=C0413
 
 class OpenAI(BaseEmbedding):
+    
     """Generate text embedding for given text using OpenAI.
 
     :param model: model name, defaults to 'text-embedding-ada-002'.

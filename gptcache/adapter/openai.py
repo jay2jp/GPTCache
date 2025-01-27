@@ -26,8 +26,33 @@ from gptcache.utils.token import token_counter
 import_openai()
 from openai import OpenAI, AsyncOpenAI
 
-client = OpenAI()
-aclient = AsyncOpenAI()
+# Initialize default clients as None
+client = None
+aclient = None
+
+def init_clients(custom_client=None, custom_async_client=None):
+    """Initialize OpenAI clients with custom instances or default configuration"""
+    global client, aclient
+    
+    if custom_client:
+        client = custom_client
+    else:
+        client = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL")
+        )
+    
+    if custom_async_client:
+        aclient = custom_async_client
+    else:
+        aclient = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL")
+        )
+
+# Initialize with default clients
+init_clients()
+
 from openai import OpenAIError
 
 from openai.types.chat import ChatCompletionChunk

@@ -1,15 +1,26 @@
 import time
-
-
-def response_text(openai_resp):
-    return openai_resp.choices[0].message.content #'choices'][0]['message']['content']
-
+import os
+from openai import OpenAI, AzureOpenAI
 from gptcache import cache
 from gptcache.adapter import openai
 from gptcache.embedding import Huggingface, Onnx, Cohere
 from gptcache.manager import CacheBase, VectorBase, get_data_manager
 from gptcache.similarity_evaluation.distance import SearchDistanceEvaluation
 
+
+openai_api_key=os.getenv("OPENAI_API_KEY")
+openai_api_base=os.getenv("OPENAI_BASE_URL")
+
+custom_client = AzureOpenAI(
+    api_key=openai_api_key,
+    api_version="2023-03-15-preview",
+    base_url=openai_api_base,
+)
+# Create custom client if needed
+
+
+# Initialize the clients before using them
+openai.init_clients(custom_client=custom_client)
 
 print("Cache loading.....")
 
