@@ -45,7 +45,7 @@ class Cohere(BaseEmbedding):
         """
         if not isinstance(data, list):
             data = [data]
-        response = self.co.embed(texts=data, model=self.model)
+        response = self.co.embed(texts=data, model=self.model, input_type="search_document")
         embeddings = response.embeddings
         return np.array(embeddings).astype("float32").squeeze(0)
 
