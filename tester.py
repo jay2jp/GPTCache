@@ -8,7 +8,7 @@ from gptcache.manager import CacheBase, VectorBase, get_data_manager
 from gptcache.similarity_evaluation.distance import SearchDistanceEvaluation
 
 
-openai_api_key=os.getenv("OPENAI_API_KEY")
+openai_api_key=os.getenv("megaGptKey")
 openai_api_base=os.getenv("OPENAI_BASE_URL")
 
 custom_client = AzureOpenAI(
@@ -49,6 +49,22 @@ for i, question in enumerate(questions):
     response = openai.ChatCompletion.create(
         model='gpt-4o',
         stream=True,
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_weather",
+                    "description": "Get the current weather in a given location",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "location": {"type": "string", "description": "The city and state, e.g. San Francisco, CA"}
+                        },
+                        "required": ["location"]
+                    }
+                }
+            }
+        ],
         messages=[
             {
                 'role': 'system',
@@ -74,6 +90,11 @@ for i, question in enumerate(questions):
     print("Time consuming: {:.2f}s".format(time.time() - start_time))
     
     for chunk in response:
+        #print(chunk)
+        if chunk.model == "cached":
+            print("USING CACHE FOR GPT")
+        else:
+            print("USING GPT")  
         #print(chunk.choices[0].delta.content)
         if not first_chunk_received:
             print(f'Time to first chunk: {time.time() - start_time:.2f}s')

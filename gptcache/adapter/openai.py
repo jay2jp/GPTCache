@@ -98,7 +98,7 @@ def _construct_stream_resp_from_cache(return_message, saved_token):
             index=0
         )],
         created=created,
-        model="gpt-3.5-turbo",
+        model="cached",
         object="chat.completion.chunk"
     ))
     
@@ -111,7 +111,7 @@ def _construct_stream_resp_from_cache(return_message, saved_token):
             index=0
         )],
         created=created,
-        model="gpt-3.5-turbo",
+        model="cached",
         object="chat.completion.chunk"
     ))
     
@@ -124,7 +124,7 @@ def _construct_stream_resp_from_cache(return_message, saved_token):
             index=0
         )],
         created=created,
-        model="gpt-3.5-turbo",
+        model="cached",
         object="chat.completion.chunk",
         # Custom fields for gptcache
         gptcache=True,
